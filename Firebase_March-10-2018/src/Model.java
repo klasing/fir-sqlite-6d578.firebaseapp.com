@@ -162,7 +162,31 @@ public class Model {
                     control.receiveMessage(jsonObject);
                 }
                 if (jsonObject.getImageUrl() != null) {
-                    // wait for a onChildChanged event
+                    // 1) if imageUrl contains http:// then
+                    //    wait for an onChildChanged event
+                    if (jsonObject.getImageUrl().contains("https://")) {
+                        return;
+                    }
+                    // 2) if imageUrl contains gs:// then
+                    //    download image message
+                    if (jsonObject.getImageUrl().contains("gs://")) {
+                        try { Thread.sleep(1000); } catch(Exception e) {}
+                        String imageUrl = jsonObject.getImageUrl();
+                        int length = imageUrl.length();
+                        int i = imageUrl.indexOf('/', 5);
+                        // object_name is [MAP][KEY][FILE_NAME]
+                        String object_name = imageUrl.substring(i + 1, length);
+                        object_name = object_name.replaceAll("/", "%2F");
+
+                        // search google-cloud-storage for metadata
+                        String downloadToken = getToken(object_name);
+
+                        // download image from google-cloud-storage
+                        BufferedImage bufferedImage = getImage(object_name,
+                            downloadToken);
+
+                        control.receiveImage(jsonObject, bufferedImage);
+                    }
                 }
             }
             @Override
@@ -175,7 +199,7 @@ public class Model {
                     dataSnapshot.getValue(JsonObject.class);
 
                 if (jsonObject.getImageUrl() != null) {
-                    // if imageUrl is not null, an image is received
+                    // if imageUrl is not null, an image is created
                     // process imageUrl, to get object_name
                     String imageUrl = jsonObject.getImageUrl();
                     int length = imageUrl.length();
