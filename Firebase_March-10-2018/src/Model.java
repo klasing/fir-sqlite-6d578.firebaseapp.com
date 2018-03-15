@@ -27,6 +27,7 @@ import java.io.StringWriter;
 import java.io.Writer;
 
 import java.util.Arrays;
+import java.util.concurrent.Future;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,6 +45,9 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.impl.client.HttpClientBuilder;
+
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
 
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -170,7 +174,6 @@ public class Model {
                     // 2) if imageUrl contains gs:// then
                     //    download image message
                     if (jsonObject.getImageUrl().contains("gs://")) {
-                        try { Thread.sleep(1000); } catch(Exception e) {}
                         String imageUrl = jsonObject.getImageUrl();
                         int length = imageUrl.length();
                         int i = imageUrl.indexOf('/', 5);
@@ -178,9 +181,10 @@ public class Model {
                         String object_name = imageUrl.substring(i + 1, length);
                         object_name = object_name.replaceAll("/", "%2F");
 
-                        // search google-cloud-storage for metadata
-                        String downloadToken = getToken(object_name);
 
+                        // search google-cloud-storage for metadata
+                        // this must be synchronized to wait for a downloadToken value
+                        String downloadToken = getToken(object_name);
                         // download image from google-cloud-storage
                         BufferedImage bufferedImage = getImage(object_name,
                             downloadToken);
@@ -209,6 +213,7 @@ public class Model {
                     object_name = object_name.replaceAll("/", "%2F");
 
                     // search google-cloud-storage for metadata
+                    // this must be synchronized to wait for a downloadToken value
                     String downloadToken = getToken(object_name);
 
                     // download image from google-cloud-storage
@@ -253,8 +258,10 @@ public class Model {
             // set first header
             Map<String, String> mapHeader = new HashMap<String, String>();
             mapHeader.put("Authorization", "Bearer " + oauth2_token);
+            // call httpRequestSync, to wait for a downloadToken value
+            // to be received
             HttpEntity httpEntity =
-                httpRequest("get", url, mapHeader, null, null, null);
+                httpRequestSync("get", url, mapHeader, null, null, null);
 
             // read httpEntity content, from an inputstream
             String entityContent = readEntityContent(httpEntity);
@@ -494,6 +501,54 @@ public class Model {
 
         // return the HttpEntity
         return httpResponse.getEntity();
+    }
+    //************************************************************************
+    //*                 httpRequestSync
+    //************************************************************************
+    private HttpEntity httpRequestSync(final String mode, final String url,
+        final Map<String, String> mapHeader, final JsonObject jsonObject,
+        final byte[] data, final Map<String, String> mapPatch)
+        throws Exception {
+
+        Log.d(LOG_TAG, ".httpRequestSync()");
+
+        HttpResponse httpResponse = null;
+
+        // now, let's try the HttpAsync
+        CloseableHttpAsyncClient httpClient = HttpAsyncClients.createDefault();
+        try {
+            // start the client
+            httpClient.start();
+
+            // create get request
+            final HttpGet httpGet = new HttpGet(url);
+
+            // include mapHeader for a get request
+            if (mapHeader != null) {
+                // iterate over mapHeader
+                for (Map.Entry<String, String> entry : mapHeader.entrySet()) {
+                    // set header
+                    httpGet.setHeader(entry.getKey(), entry.getValue());
+                }
+            }
+
+            // execute get request
+            Future<HttpResponse> future = httpClient.execute(httpGet, null);
+            // and wait until a response is received
+            httpResponse = future.get();
+
+        } finally {
+            httpClient.close();
+        }
+
+        return httpResponse.getEntity();
+
+        // for now call old httpRequest
+        //HttpEntity httpEntity =
+        //    httpRequest("get", url, mapHeader, null, null, null);
+
+        //return httpEntity();
+
     }
     //************************************************************************
     //*                 declare
