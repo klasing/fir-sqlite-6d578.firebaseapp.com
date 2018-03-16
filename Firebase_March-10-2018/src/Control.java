@@ -78,7 +78,7 @@ public class Control {
             Main.exit(2);
         }
         // start listen for Firebase message
-        model.listenFirebase();
+        model.listen4FirebaseChanges();
     }
     //************************************************************************
     //*                 sendMessage

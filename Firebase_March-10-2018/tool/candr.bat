@@ -1,6 +1,7 @@
 ECHO OFF
 
 SET JAVA_HOME=C:\Progra~1\Java\jdk1.8.0_131\bin\
+REM SET JAVA_HOME=G:\java_standalone\jre1.8.0_161\bin\
 
 CD ..
 SET CLASSPATH=
@@ -26,6 +27,9 @@ SET CLASSPATH=%CLASSPATH%;.\lib\json-20180130.jar
 SET CLASSPATH=%CLASSPATH%;.\lib\jsr305-1.3.9.jar
 SET CLASSPATH=%CLASSPATH%;.\lib\protobuf-java-2.6.1.jar
 SET CLASSPATH=%CLASSPATH%;.\lib\xpp3-1.1.4c.jar
+
+SET CLASSPATH=%CLASSPATH%;.\lib_not-used\httpasyncclient-4.1.3.jar
+SET CLASSPATH=%CLASSPATH%;.\lib_not-used\httpcore-nio-4.4.6.jar
 
 ECHO [LIBRARY]
 

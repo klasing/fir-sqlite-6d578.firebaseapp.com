@@ -26,6 +26,8 @@ import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
 
+import java.lang.Iterable;
+
 import java.util.Arrays;
 import java.util.concurrent.Future;
 import java.util.HashMap;
@@ -122,10 +124,10 @@ public class Model {
         return true;
     }
     //************************************************************************
-    //*                 listenFirebase
+    //*                 listen4FirebaseChanges
     //************************************************************************
-    protected void listenFirebase() {
-        Log.d(LOG_TAG, ".listenFirebase()");
+    protected void listen4FirebaseChanges() {
+        Log.d(LOG_TAG, ".listen4FirebaseChanges()");
 
         // as an admin, the app has access to read and write all data,
         // regardless of Security Rules
@@ -135,9 +137,38 @@ public class Model {
 
         // listen for database changes
         databaseReference.addListenerForSingleValueEvent(new ValueEventListener() {
+
             @Override
             public void onDataChange(DataSnapshot dataSnapshot) {
                 Log.d(LOG_TAG, ".onDataChange()");
+
+                long children_count = dataSnapshot.getChildrenCount();
+                if (children_count == 0) {
+                    // empty Firebase
+                    listen4FirebaseChildEvents(children_count);
+                } else {
+                    final int MAX_NOF_RECORD_AT_STARTUP = 12;
+                    if (children_count > MAX_NOF_RECORD_AT_STARTUP) {
+                        // the nof records in the database is large, so download
+                        // the last MAX_NOF_RECORD_AT_STARTUP for being shown
+                        long startDownloadIndex = children_count -
+                            MAX_NOF_RECORD_AT_STARTUP;
+                        long index = 0;
+
+                        Iterable<DataSnapshot> iterable = dataSnapshot.getChildren();
+                        for (DataSnapshot ds : iterable) {
+                            if (index >= startDownloadIndex) {
+                                onEventDownload(ds);
+                            }
+                            index++;
+                        }
+                        listen4FirebaseChildEvents(children_count);
+                    } else {
+                        // the nof records in the database is small,
+                        // let onChildAdded dowload all
+                        listen4FirebaseChildEvents(children_count);
+                    }
+                }
             }
 
             @Override
@@ -148,49 +179,40 @@ public class Model {
                 Main.exit(3);
             }
         });
+    }
+
+    //************************************************************************
+    //*                 listen4FirebaseChildEvents
+    //************************************************************************
+    protected void listen4FirebaseChildEvents(final long children_count) {
+
+        Log.d(LOG_TAG, ".listen4FirebaseChildEvents()");
+
+        // as an admin, the app has access to read and write all data,
+        // regardless of Security Rules
+        DatabaseReference databaseReference = FirebaseDatabase
+            .getInstance()
+            .getReference(root);
 
         // listen for child events
         databaseReference.addChildEventListener(new ChildEventListener() {
+            // used for preventing double loading
+            long index = 0;
+
             @Override
             public void onChildAdded(DataSnapshot dataSnapshot, String prevChildKey) {
                 Log.d(LOG_TAG, ".onChildAdded()");
                 //Log.i("Value: " + dataSnapshot.getValue().toString());
                 //Log.i("Ref: " + dataSnapshot.getRef().toString());
 
-                // map the received json to an object
-                JsonObject jsonObject =
-                    dataSnapshot.getValue(JsonObject.class);
-
-                if (jsonObject.getText() != null) {
-                    // if text is not null, a message is received
-                    control.receiveMessage(jsonObject);
-                }
-                if (jsonObject.getImageUrl() != null) {
-                    // 1) if imageUrl contains http:// then
-                    //    wait for an onChildChanged event
-                    if (jsonObject.getImageUrl().contains("https://")) {
-                        return;
-                    }
-                    // 2) if imageUrl contains gs:// then
-                    //    download image message
-                    if (jsonObject.getImageUrl().contains("gs://")) {
-                        String imageUrl = jsonObject.getImageUrl();
-                        int length = imageUrl.length();
-                        int i = imageUrl.indexOf('/', 5);
-                        // object_name is [MAP][KEY][FILE_NAME]
-                        String object_name = imageUrl.substring(i + 1, length);
-                        object_name = object_name.replaceAll("/", "%2F");
-
-
-                        // search google-cloud-storage for metadata
-                        // this must be synchronized to wait for a downloadToken value
-                        String downloadToken = getToken(object_name);
-                        // download image from google-cloud-storage
-                        BufferedImage bufferedImage = getImage(object_name,
-                            downloadToken);
-
-                        control.receiveImage(jsonObject, bufferedImage);
-                    }
+                if (children_count == 0) {
+                    // empty Firebase
+                    onEventDownload(dataSnapshot);
+                } else {
+                    index++;
+                    if (index > children_count)
+                        // add new message
+                        onEventDownload(dataSnapshot);
                 }
             }
             @Override
@@ -243,6 +265,48 @@ public class Model {
                 Main.exit(3);
             }
         });
+    }
+    //************************************************************************
+    //*                 onEventDownload
+    //************************************************************************
+    private void onEventDownload(final DataSnapshot dataSnapshot) {
+        Log.d(LOG_TAG, ".onEventDownload()");
+
+        // map the received json to an object
+        JsonObject jsonObject =
+            dataSnapshot.getValue(JsonObject.class);
+
+        if (jsonObject.getText() != null) {
+            // if text is not null, a message is received
+            control.receiveMessage(jsonObject);
+        }
+        if (jsonObject.getImageUrl() != null) {
+            // 1) if imageUrl contains http:// then
+            //    wait for an onChildChanged event
+            if (jsonObject.getImageUrl().contains("https://")) {
+                return;
+            }
+            // 2) if imageUrl contains gs:// then
+            //    download image message
+            if (jsonObject.getImageUrl().contains("gs://")) {
+                String imageUrl = jsonObject.getImageUrl();
+                int length = imageUrl.length();
+                int i = imageUrl.indexOf('/', 5);
+                // object_name is [MAP][KEY][FILE_NAME]
+                String object_name = imageUrl.substring(i + 1, length);
+                object_name = object_name.replaceAll("/", "%2F");
+
+
+                // search google-cloud-storage for metadata
+                // this must be synchronized to wait for a downloadToken value
+                String downloadToken = getToken(object_name);
+                // download image from google-cloud-storage
+                BufferedImage bufferedImage = getImage(object_name,
+                    downloadToken);
+
+                control.receiveImage(jsonObject, bufferedImage);
+            }
+        }
     }
     //************************************************************************
     //*                 getToken
