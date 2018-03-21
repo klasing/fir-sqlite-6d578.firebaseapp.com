@@ -210,7 +210,11 @@ public class Model {
                     onEventDownload(dataSnapshot);
                 } else {
                     index++;
+
                     if (index > children_count)
+
+                        //Log.i("index: " + index + " childeren_count: " + children_count);
+
                         // add new message
                         onEventDownload(dataSnapshot);
                 }
@@ -225,14 +229,26 @@ public class Model {
                     dataSnapshot.getValue(JsonObject.class);
 
                 if (jsonObject.getImageUrl() != null) {
-                    // if imageUrl is not null, an image is created
-                    // process imageUrl, to get object_name
-                    String imageUrl = jsonObject.getImageUrl();
-                    int length = imageUrl.length();
-                    int i = imageUrl.indexOf('/', 5);
-                    // object_name is [MAP][KEY][FILE_NAME]
-                    String object_name = imageUrl.substring(i + 1, length);
-                    object_name = object_name.replaceAll("/", "%2F");
+                    String object_name = null;
+                    if (jsonObject.getImageUrl().contains("gs://")) {
+                        // if imageUrl is not null, an image is created
+                        // process imageUrl, to get object_name
+                        String imageUrl = jsonObject.getImageUrl();
+                        int length = imageUrl.length();
+                        int i = imageUrl.indexOf('/', 5);
+                        // object_name is [MAP][KEY][FILE_NAME]
+                        object_name = imageUrl.substring(i + 1, length);
+                        object_name = object_name.replaceAll("/", "%2F");
+                    }
+                    if (jsonObject.getImageUrl().contains("https://")) {
+                        String imageUrl = jsonObject.getImageUrl();
+                        //Log.i("imageUrl: " + imageUrl);
+                        int length = imageUrl.length();
+                        int i = imageUrl.lastIndexOf('/');
+                        imageUrl = imageUrl.substring(i + 1, length);
+                        int j = imageUrl.indexOf('?');
+                        object_name = imageUrl.substring(0, j);
+                    }
 
                     // search google-cloud-storage for metadata
                     // this must be synchronized to wait for a downloadToken value
@@ -283,7 +299,12 @@ public class Model {
         if (jsonObject.getImageUrl() != null) {
             // 1) if imageUrl contains http:// then
             //    wait for an onChildChanged event
-            if (jsonObject.getImageUrl().contains("https://")) {
+//            if (jsonObject.getImageUrl().contains("https://")) {
+//                Log.i("waiting for onChildChanged event");
+//                return;
+//            }
+            if (jsonObject.getImageUrl().equals("https://www.google.com/images/spin-32.gif")) {
+                Log.i("waiting for onChildChanged event");
                 return;
             }
             // 2) if imageUrl contains gs:// then
@@ -292,10 +313,32 @@ public class Model {
                 String imageUrl = jsonObject.getImageUrl();
                 int length = imageUrl.length();
                 int i = imageUrl.indexOf('/', 5);
-                // object_name is [MAP][KEY][FILE_NAME]
+                // object_name is [images][FILE_NAME]// object_name is [MAP][KEY][FILE_NAME]
                 String object_name = imageUrl.substring(i + 1, length);
                 object_name = object_name.replaceAll("/", "%2F");
 
+                // search google-cloud-storage for metadata
+                // this must be synchronized to wait for a downloadToken value
+                String downloadToken = getToken(object_name);
+                // download image from google-cloud-storage
+                BufferedImage bufferedImage = getImage(object_name,
+                    downloadToken);
+
+                control.receiveImage(jsonObject, bufferedImage);
+                return;
+            }
+            if (jsonObject.getImageUrl().contains("https://")) {
+                String imageUrl = jsonObject.getImageUrl();
+                //Log.i("imageUrl: " + imageUrl);
+                int length = imageUrl.length();
+                int i = imageUrl.lastIndexOf('/');
+                imageUrl = imageUrl.substring(i + 1, length);
+                int j = imageUrl.indexOf('?');
+                String object_name = imageUrl.substring(0, j);
+                //object_name = object_name.replaceAll("/", "%2F");
+                //object_name = object_name.replace(":", "%3A");
+
+                //Log.i("object_name: " + object_name);
 
                 // search google-cloud-storage for metadata
                 // this must be synchronized to wait for a downloadToken value
@@ -322,6 +365,7 @@ public class Model {
             // set first header
             Map<String, String> mapHeader = new HashMap<String, String>();
             mapHeader.put("Authorization", "Bearer " + oauth2_token);
+
             // call httpRequestSync, to wait for a downloadToken value
             // to be received
             HttpEntity httpEntity =
@@ -359,6 +403,7 @@ public class Model {
             // set first header
             Map<String, String> mapHeader = new HashMap<String, String>();
             mapHeader.put("Authorization", "Bearer " + oauth2_token);
+
             HttpEntity httpEntity =
                 httpRequest("get", url, mapHeader, null, null, null);
 
@@ -419,10 +464,10 @@ public class Model {
             int end_index = entityContent.indexOf('\"', start_index);
             key = entityContent.substring(start_index, end_index);
 
-            String object_name = key + "%2F" + file_name;
+            String object_name = "images" + "%2F" + file_name;//String object_name = key + "%2F" + file_name;
 
             url = "https://www.googleapis.com/" +
-                "upload/storage/v1/b/" + bucket_name + "/o?uploadType=media" +
+                "upload/storage/v1/b/" + bucket_name + "/o/?uploadType=media" +
                 "&name=" + object_name;
             Map<String, String> mapHeader = new HashMap<String, String>();
             // set first header
@@ -447,7 +492,9 @@ public class Model {
 
             Map<String, String> mapPatch = new HashMap<String, String>();
             // set key and value for patch
-            mapPatch.put("imageUrl", "gs://" + bucket_name + "/" + key + "/" +
+            //mapPatch.put("imageUrl", "gs://" + bucket_name + "/" + key + "/" +
+            //    file_name);
+            mapPatch.put("imageUrl", "gs://" + bucket_name + "/images/" +
                 file_name);
 
             httpEntity =
@@ -604,6 +651,14 @@ public class Model {
         } finally {
             httpClient.close();
         }
+
+        // log status code and status phrase
+        Log.i(Integer.toString(httpResponse.getStatusLine().getStatusCode()) +
+            " " + httpResponse.getStatusLine().getReasonPhrase());
+
+        // return false, if operation fails
+        if (httpResponse.getStatusLine().getStatusCode() != 200)
+            return null;
 
         return httpResponse.getEntity();
 

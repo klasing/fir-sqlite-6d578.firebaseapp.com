@@ -152,7 +152,9 @@ FirebaseObject.prototype.saveImageMessage = function(event) {
 		}).then(function(data) {
 
 			// upload the image to Cloud Storage
-			var filePath = currentUser.uid + '/' + data.key + '/' + file.name;
+			//var filePath = '/images/' + currentUser.uid + '/' + data.key + '/' + file.name;
+			// update for Android
+			var filePath = '/images/' + file.name;
 			return this.storage.ref(filePath).put(file).then(function(snapshot) {
 
 				// get the file's Storage URI and update the chat message placeholder

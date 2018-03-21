@@ -1,0 +1,176 @@
+<!doctype html>
+<html>
+<head>
+    <!-- update the version number as needed -->
+    <script defer src="/__/firebase/4.10.1/firebase-app.js"></script>
+    <!-- include only the Firebase features as you need -->
+    <script defer src="/__/firebase/4.10.1/firebase-auth.js"></script>
+    <script defer src="/__/firebase/4.10.1/firebase-database.js"></script>
+    <script defer src="/__/firebase/4.10.1/firebase-messaging.js"></script>
+    <script defer src="/__/firebase/4.10.1/firebase-storage.js"></script>
+    <!-- initialize the SDK after all desired features are loaded -->
+    <script defer src="/__/firebase/init.js"></script>
+
+    <script src="https://cdn.firebase.com/libs/firebaseui/2.5.1/firebaseui.js"></script>
+    <link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/2.5.1/firebaseui.css" />
+
+    <script src="https://www.gstatic.com/firebasejs/4.10.1/firebase.js"></script>
+    <script>
+      // Initialize Firebase
+      var config = {
+        apiKey: "AIzaSyA8OEcbD6fAGShgIWNrRR7Yf0snkmM8kj4",
+        authDomain: "fir-sqlite-6d578.firebaseapp.com",
+        databaseURL: "https://fir-sqlite-6d578.firebaseio.com",
+        projectId: "fir-sqlite-6d578",
+        storageBucket: "fir-sqlite-6d578.appspot.com",
+        messagingSenderId: "803841220305"
+      };
+      firebase.initializeApp(config);
+
+      // Initialize the FirebaseUI Widget using Firebase.
+      var ui = new firebaseui.auth.AuthUI(firebase.auth());
+
+      var uiConfig = {
+        callbacks: {
+          signInSuccess: function(currentUser, credential, redirectUrl) {
+            // User successfully signed in.
+            // Return type determines whether we continue the redirect automatically
+            // or whether we leave that to developer to handle.
+            console.log('*** signInSuccess');
+            return true;
+          },
+          uiShown: function() {
+            // The widget is rendered.
+            // Hide the loader.
+            //document.getElementById('loader').style.display = 'none';
+            console.log('*** uiShown');
+          }
+        },
+        // Will use popup for IDP Providers sign-in flow instead of the default, redirect.
+        //signInFlow: 'popup',
+        signInSuccessUrl: '<url-to-redirect-to-on-success>',
+        signInOptions: [
+          // Leave the lines as is for the providers you want to offer your users.
+          firebase.auth.EmailAuthProvider.PROVIDER_ID,
+          firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+          //firebase.auth.FacebookAuthProvider.PROVIDER_ID,
+          //firebase.auth.TwitterAuthProvider.PROVIDER_ID,
+          //firebase.auth.GithubAuthProvider.PROVIDER_ID,
+          //firebase.auth.PhoneAuthProvider.PROVIDER_ID
+        ],
+        // Terms of service url.
+        tosUrl: '<your-tos-url>'
+      };
+
+      // The start method will wait until the DOM is loaded.
+      ui.start('#firebaseui-auth-container', uiConfig);
+
+      firebase.auth().onAuthStateChanged(function(user) {
+        if (user) {
+          // User is signed in.
+          document.getElementById('login-button').innerHTML = "Sign out";
+          document.getElementById('display-name').innerHTML = user.displayName;
+          document.getElementById('display-name').style.display = 'inline';
+          document.getElementById('messages-button').disabled = false;
+          document.getElementById('update-button').disabled = false;
+          document.getElementById('delete-button').disabled = false;
+          document.getElementById('submit-button').disabled = false;
+          console.log('*** user is signed in');
+        } else {
+          // No user is signed in.
+          console.log('*** user is signed out');
+        }
+      });
+
+      function signOut() {
+        firebase.auth().signOut().then(function() {
+            console.log('*** user signed out');
+          }, function(error) {
+            console.error('signOut() Error', error);
+          }
+        );
+      }
+
+      function readData() {
+        console.log('*** readData()');
+        // Get a reference to the database service
+        var root = firebase.database().ref('alphabet');
+        root.on('value', function(snapshot) {
+          if (snapshot.exists()) {
+            console.log(snapshot.val());
+            // get an array with Firebase keys
+            var aKey = Object.keys(snapshot.val());
+            var content = '';
+            var iterator = 0;
+            snapshot.forEach(function(data) {
+              var val = data.val();
+              content += aKey[iterator++] + '&nbsp;';
+              content += val.id + '&nbsp;';
+              content += val.name + '\n';
+            });
+            document.getElementById('data-textarea').innerHTML = content;
+          } else {
+            console.log('no data');
+          }
+
+        });
+      }
+
+      function submit() {
+        console.log('*** submit()');
+        var id = document.getElementById('id-field').value;
+        var name = document.getElementById('name-field').value;
+        console.log('id: ' + id + ' name: ' + name);
+        var objPush = firebase.database().ref('alphabet').push();
+        objPush.set({
+          id: id,
+          name: name
+        });
+      }
+</script>
+
+</head>
+<body>
+
+<button id="login-button">Sign in</button><div id="display-name"></div><br>
+<div id="firebaseui-auth-container"></div><br>
+<button id="messages-button" disabled>Messages</button><br>
+<textarea id="data-textarea" rows="20" cols="35" placeholder="messages"></textarea><br>
+<button id="update-button" disabled>Update</button><button id="delete-button" disabled>Delete</button><br>
+<input type="text" id="id-field" placeholder="id"/>
+<input type="text" id="name-field" placeholder="name"/>
+<button id="submit-button" disabled onclick="submit()">Submit</button>
+
+<script>
+// hide the display-name
+document.getElementById('display-name').style.display = 'none';
+// hide the firebaseui-auth-container
+document.getElementById('firebaseui-auth-container').style.display = 'none';
+
+var loginButton = document.getElementById("login-button");
+loginButton.addEventListener('click', function() {
+  console.log('signInButton.addEventListener: click');
+  if (loginButton.childNodes[0].nodeValue == 'Sign in') {
+    console.log('*** sign in');
+    // show the firebaseui-auth-container
+    document.getElementById('firebaseui-auth-container').style.display = 'inline';
+  } else {
+    console.log('*** sign out');
+    document.getElementById('login-button').innerHTML = "Sign in";
+    document.getElementById('display-name').style.display = 'none';
+    document.getElementById('messages-button').disabled = true;
+    document.getElementById('update-button').disabled = true;
+    document.getElementById('delete-button').disabled = true;
+    document.getElementById('submit-button').disabled = true;
+    signOut();
+  }
+});
+var messagesButton = document.getElementById("messages-button");
+messagesButton.addEventListener('click', function() {
+  console.log('messagesButton.addEventListener: click');
+  readData();
+});
+</script>
+
+</body>
+</html>

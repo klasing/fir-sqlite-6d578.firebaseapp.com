@@ -1,0 +1,279 @@
+<!doctype html>
+<html>
+<head>
+<!-- update the version number as needed -->
+<script defer src="/__/firebase/4.10.1/firebase-app.js"></script>
+<!-- include only the Firebase features as you need -->
+<script defer src="/__/firebase/4.10.1/firebase-auth.js"></script>
+<script defer src="/__/firebase/4.10.1/firebase-database.js"></script>
+<script defer src="/__/firebase/4.10.1/firebase-messaging.js"></script>
+<script defer src="/__/firebase/4.10.1/firebase-storage.js"></script>
+<!-- initialize the SDK after all desired features are loaded -->
+<script defer src="/__/firebase/init.js"></script>
+
+<script src="https://cdn.firebase.com/libs/firebaseui/2.5.1/firebaseui.js"></script>
+<link type="text/css" rel="stylesheet" href="https://cdn.firebase.com/libs/firebaseui/2.5.1/firebaseui.css" />
+
+<script src="https://www.gstatic.com/firebasejs/4.10.1/firebase.js"></script>
+
+<script>
+  // initialize Firebase
+  var config = {
+    apiKey: "AIzaSyA8OEcbD6fAGShgIWNrRR7Yf0snkmM8kj4",
+    authDomain: "fir-sqlite-6d578.firebaseapp.com",
+    databaseURL: "https://fir-sqlite-6d578.firebaseio.com",
+    projectId: "fir-sqlite-6d578",
+    storageBucket: "fir-sqlite-6d578.appspot.com",
+    messagingSenderId: "803841220305"
+  };
+  firebase.initializeApp(config);
+
+  // initialize the FirebaseUI Widget using Firebase
+  var ui = new firebaseui.auth.AuthUI(firebase.auth());
+
+  var uiConfig = {
+    callbacks: {
+      signInSuccess: function(currentUser, credential, redirectUrl) {
+        // user successfully signed in
+        // return type determines whether we continue the redirect automatically
+        // or whether we leave that to developer to handle
+        console.log('*** signInSuccess');
+        return true;
+      },
+      uiShown: function() {
+        // the widget is rendered
+        console.log('*** uiShown');
+      }
+    },
+    signInSuccessUrl: '<url-to-redirect-to-on-success>',
+    signInOptions: [
+      // leave the lines as is for the providers you want to offer your users
+      firebase.auth.EmailAuthProvider.PROVIDER_ID,
+      firebase.auth.GoogleAuthProvider.PROVIDER_ID,
+    ],
+    // terms of service url
+    tosUrl: '<your-tos-url>'
+  };
+
+  // the start method will wait until the DOM is loaded
+  ui.start('#firebaseui-auth-container', uiConfig);
+
+  firebase.auth().onAuthStateChanged(function(user) {
+    if (user) {
+      // user is signed in
+      console.log('*** user is signed in');
+      document.getElementById('display-name').innerHTML = user.displayName;
+
+      document.getElementById('login-button').innerHTML = "Sign out";
+      document.getElementById('display-name').style.display = 'inline';
+      document.getElementById('messages-button').disabled = false;
+      //document.getElementById('update-button').disabled = false;
+      //document.getElementById('delete-button').disabled = false;
+      document.getElementById('submit-button').disabled = false;
+    } else {
+      // no user is signed in
+      console.log('*** no user is signed in');
+    }
+  });
+
+  function signOut() {
+    firebase.auth().signOut().then(function() {
+      console.log('*** user is signed out');
+      document.getElementById('display-name').innerHTML = '';
+
+      document.getElementById('login-button').innerHTML = "Sign in";
+      document.getElementById('display-name').style.display = 'none';
+      document.getElementById('messages-button').disabled = true;
+      document.getElementById('update-button').disabled = true;
+      document.getElementById('delete-button').disabled = true;
+      document.getElementById('submit-button').disabled = true;
+    }, function(error) {
+      console.error('signOut() Error', error);
+    });
+  }
+
+  function readData() {
+    console.log('*** readData()');
+    // get a reference to the database service
+    var root = firebase.database().ref('alphabet');
+    root.on('value', function(snapshot) {
+      if (snapshot.exists()) {
+        console.log(snapshot.val());
+        divDataTable = document.getElementById('div-data-table');
+
+        // if exists, remove old table
+        if (document.getElementById('data-table'))
+          divDataTable.removeChild(document.getElementById('data-table'));
+
+        // create table
+        dataTable = document.createElement('table');
+        dataTable.setAttribute('id', 'data-table');
+        dataTable.setAttribute('border', '1');
+
+        // create row table heading
+        tr = document.createElement("tr");
+        thKey = document.createElement("th");
+        thKey.setAttribute('bgcolor', '#FF8000');
+        thKey.innerHTML = 'Key';
+        thId = document.createElement("th");
+        thId.setAttribute('bgcolor', '#FF8000');
+        thId.innerHTML = 'Id';
+        thName = document.createElement("th");
+        thName.setAttribute('bgcolor', '#FF8000');
+        thName.innerHTML = 'Name';
+        tr.appendChild(thKey);
+        tr.appendChild(thId);
+        tr.appendChild(thName);
+        dataTable.appendChild(tr);
+
+        iterator = 0;
+        snapshot.forEach(function(data) {
+          var val = data.val();
+          // create row table data
+          trData = document.createElement("tr");
+          trData.setAttribute('onclick', 'getTableRow(this)');
+          if (iterator++ % 2 == 0)
+            trData.setAttribute('bgcolor', '#dddddd');
+          tdKey = document.createElement("td");
+          tdKey.innerHTML = data.key;
+          tdId = document.createElement("td");
+          tdId.innerHTML = val.id;
+          tdName = document.createElement("td");
+          tdName.innerHTML = val.name;
+          trData.appendChild(tdKey);
+          trData.appendChild(tdId);
+          trData.appendChild(tdName);
+          dataTable.appendChild(trData);
+        });
+
+        // add table to div element
+        divDataTable.appendChild(dataTable);
+      } else {
+        console.log('no data');
+      }
+    });
+  }
+
+  // global variable is used for update/delete
+  var key;
+  function getTableRow(element) {
+    var rowIndex = element.rowIndex;
+    console.log('*** getTableRow()');
+    // retrieve key value for update/delete
+    key = element.childNodes[0].innerHTML;
+
+    // bring child nodes of selected row to update/delete/submit fields
+    document.getElementById('id-field').value = element.childNodes[1].innerHTML;
+    document.getElementById('name-field').value = element.childNodes[2].innerHTML;
+
+    // enable update/delete button
+    document.getElementById('update-button').disabled = false;
+    document.getElementById('delete-button').disabled = false;
+  }
+
+  function update() {
+    console.log('*** update()');
+    var __id = document.getElementById('id-field').value;
+    var __name = document.getElementById('name-field').value;
+    console.log('id: ' + __id + ' name: ' + __name);
+
+    firebase.database().ref('alphabet/' + key).update({id: __id});
+    firebase.database().ref('alphabet/' + key).update({name: __name});
+
+    // clear id-field/name-field
+    document.getElementById('id-field').value = '';
+    document.getElementById('name-field').value = '';
+
+    // disable update/delete button
+    document.getElementById('update-button').disabled = true;
+    document.getElementById('delete-button').disabled = true;
+  }
+
+  function __delete() {
+    console.log('*** __delete()');
+
+    // delete from Firebase
+    firebase.database().ref('alphabet').child(key).remove();
+
+    // clear id-field/name-field
+    document.getElementById('id-field').value = '';
+    document.getElementById('name-field').value = '';
+
+    // disable update/delete button
+    document.getElementById('update-button').disabled = true;
+    document.getElementById('delete-button').disabled = true;
+  }
+
+  function submit() {
+    console.log('*** submit()');
+    var id = document.getElementById('id-field').value;
+    var name = document.getElementById('name-field').value;
+    console.log('id: ' + id + ' name: ' + name);
+
+    var objPush = firebase.database().ref('alphabet').push();
+    objPush.set({
+      id: id,
+      name: name
+    });
+
+    // when update, remove selected line in textarea
+    //window.getSelection().removeAllRanges();
+  }
+
+  function query() {
+    console.log('*** query()');
+    // look at:
+    // https://stackoverflow.com/questions/40589397/firebase-db-how-to-update-particular-value-of-child-in-firebase-database
+  }
+</script>
+</head>
+<body>
+<button id="login-button">Sign in</button><div id="display-name"></div><br>
+<div id="firebaseui-auth-container"></div><br>
+<button id="messages-button" disabled>Messages</button><br>
+<div id="div-data-table"></div>
+<br>
+<button id="update-button" disabled onclick="update()">Update</button><button id="delete-button" disabled onclick="__delete()">Delete</button><br>
+<input type="text" id="id-field" placeholder="id"/>
+<input type="text" id="name-field" placeholder="name"/><br>
+<button id="submit-button" disabled onclick="submit()">Submit</button><br><br>
+<button id="query-button" disabled onclick="query()">Query</button>
+
+<script>
+  // hide the firebaseui-auth-container
+  document.getElementById('firebaseui-auth-container').style.display = 'none';
+
+  var loginButton = document.getElementById("login-button");
+  loginButton.addEventListener('click', function() {
+    console.log('signInButton.addEventListener: click');
+    if (loginButton.childNodes[0].nodeValue == 'Sign in') {
+      console.log('*** sign in');
+      // show the firebaseui-auth-container
+      document.getElementById('firebaseui-auth-container').style.display = 'inline';
+    } else {
+      console.log('*** sign out');
+      signOut();
+    }
+  });
+
+  var messagesButton = document.getElementById("messages-button");
+  messagesButton.addEventListener('click', function() {
+    console.log('messagesButton.addEventListener: click');
+    readData();
+  });
+
+  //var dataTextarea = document.getElementById("data-textarea");
+  //dataTextarea.addEventListener('click', function() {
+  //  console.log('dataTextarea.addEventListener: click' + ' ' +
+  //    dataTextarea.selectionStart);
+  //  dataTextarea.focus();
+  //  dataTextarea.selectionEnd = dataTextarea.selectionStart + 2;
+  //});
+
+  //var updateButton = document.getElementById("update-button");
+  //updateButton.addEventListener('click', function() {
+  //  console.log('updateButton.addEventListener: click');
+  //});
+</script>
+</body>
+</html>
